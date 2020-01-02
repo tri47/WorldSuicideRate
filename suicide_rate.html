@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+    
+<head>
+    <meta charset="utf-8">
+    <title>Suicde Rate by Country</title>
+    <script  type="text/javascript" src="lib/d3.v5.min.js"></script>
+
+<style> 
+
+    .bar:hover {
+        fill: steelblue;
+
+    }
+
+    .label {
+        pointer-events: none;
+    }
+
+    .axis path,
+    .axis line {
+        fill: none;
+        
+        stroke: black;
+        shape-rendering: crispEdges;
+    }
+
+    .axis text {
+        font-family: sans-serif;
+        font-size: 11px;
+        
+    }
+
+    .bar {
+            fill: grey;
+    }
+
+    .line {
+        fill: none;
+    
+        stroke-width: 2;
+    }
+
+    #graph_area {
+        display: flex;
+        align-items: flex-start;
+        overflow: scroll;
+    }
+
+    #linechart {
+        display: inline;
+
+    }
+
+    #graph {
+        float: left;
+    }
+
+
+</style>
+</head>
+
+
+<body>
+
+<div id="graph_area">
+        <div id="graph"></div>
+        <div id="linechart"> </div>
+ </div>
+
+<div>
+    <div id="suicidechart"> </div>
+</div>
+
+<script type="text/javascript">
+
+var promises = [
+    d3.csv("male.csv"),
+    d3.csv("female.csv")
+];
+
+Promise.all(promises).then(ready);
+
+//d3.csv("male.csv","female.csv").then(function(rawdata,data2) {
+
+function ready(datasets) {
+    
+    // Prepare dataset
+    let maledata = datasets[0],
+        femaledata = datasets[1];
+   
+    let maledata_object = {};
+    let femaledata_object = {};
+    
+
+    for (sex of ["maledata","femaledata"]) {
+        let rawdata = [];
+        let data_object = {};
+        if (sex == "maledata") {
+            rawdata = maledata;
+        }
+        if (sex == "femaledata") {
+            rawdata = femaledata;
+        } 
+
+        rawdata.forEach(d => {
+            d.rate = +d.rate;
+        });
+        // Convert string to numerical
+        for (i=0; i < rawdata.length; i ++ ) {
+            let country = rawdata[i].country;
+            let age = rawdata[i].age;
+            let year = rawdata[i].year;
+            let rate = rawdata[i].rate;
+            // Initiate new country
+            if (!(country in data_object)) {
+                data_object[country] = {};
+            }
+
+            if (!(age in data_object[country])) {
+                data_object[country][age] = [];
+            }
+            data_object[country][age].push([year,rate]);
+        }
+
+        if (sex == "maledata") {
+            maledata_object = data_object;
+        }
+        if (sex == "femaledata") {
+            femaledata_object = data_object;
+        } 
+    }
+    // [{name: , age: [] }]
+   /* let data = [];
+    let allrate = [];
+    
+    for (key of Object.keys(data_object)) {
+       // console.log(data_object[key]);
+        let country_i = data_object[key];
+        for (age of Object.keys(country_i)) {
+            let country_all_rate = country_i[age].map(function(d) {return d[1];});
+            //allrate.push(country_all_rate);
+            allrate = allrate.concat(country_all_rate);
+           // console.log(country_all_rate);
+        }
+        country_i.name = key;
+        data.push(country_i);
+    } */
+
+   // console.log(data);
+    //console.log(allrate);
+
+    // Chart size
+    const WIDTH = 900,
+          HEIGHT = 300,
+          MARGIN = {
+              top: 20, 
+              right: 200, 
+              bottom: 20, 
+              left: 50
+          };
+    const AGEGROUPS = ['5-14 years','15-24 years','25-34 years', 
+                       '35-54 years','55-74 years','75+ years'];
+    const AGECOLOURS = {'5-14 years':'#e31a1c',
+                        '15-24 years':'#1f78b4',
+                        '25-34 years': '#b2df8a', 
+                       '35-54 years': '#33a02c',
+                       '55-74 years': '#fb9a99',
+                       '75+ years': '#a6cee3'};
+    
+    let select = d3.select("#suicidechart")
+        .append("select")
+        .attr("id","selectCountry")
+        .on("change",changeCountry);
+    
+    let all_countries = [];
+    for (country of Object.keys(maledata_object)) {
+        all_countries.push(country);
+    }
+
+    // Create dropdown
+    let options = select.selectAll('option').data(all_countries);
+    options.enter().append("option").text(function (d) {
+        return d;
+    });
+
+    d3.select("#suicidechart")
+        .append("p")
+        .attr("class","title")
+        .text('Male Suicides /100k pop');
+    let svgmale = d3.select("#suicidechart")
+        .append("svg")
+        .attr("id","malechart")
+        .attr("width",WIDTH)
+        .attr("height",HEIGHT);
+        d3.select("#suicidechart")
+        .append("p")
+        .attr("class","title")
+        .text('Female Suicides /100k pop');
+
+
+    let svgfemale = d3.select("#suicidechart")
+        .append("svg")
+        .attr("id","femalechart")
+        .attr("width",WIDTH)
+        .attr("height",HEIGHT);
+
+    plotRate(maledata_object['Albania'],"malechart");
+    plotRate(femaledata_object['Albania'],"femalechart");
+
+    // Replot when new country is selected
+    function changeCountry() {
+        let sel = document.getElementById("selectCountry");
+        let text = sel.options[sel.selectedIndex].text;
+        plotRate(maledata_object[text],"malechart");
+        plotRate(femaledata_object[text],"femalechart");
+    };
+
+
+    function plotRate (country,svg_name) {
+        let svg = d3.select("#"+svg_name);
+        svg.selectAll("*").remove();
+         // Add Vertical legends
+        let legend = svg.selectAll('.legend')                  
+        .data(AGEGROUPS)                                   
+        .enter()                                              
+        .append('g')                                          
+        .attr('class', 'legend')                               
+        .attr('transform', function(d, i) {                    
+            return 'translate(' + (WIDTH - MARGIN.right) + ',' + 0 + ')';       
+        });     
+
+        let cellwidth = 15;
+        legend.append('rect')
+        .attr("x",function(d, i ) {
+            return (0);                             
+        })       
+        .attr("y", function (d,i) {
+            return i*cellwidth*1.2;
+        })
+        .attr('width', cellwidth*1.2)                        
+        .attr('height', cellwidth)                                                    
+        .style('fill', function (d){
+            return AGECOLOURS[d];
+        });  
+
+        //Add legend labels
+        legend.append('text')     
+        .style("font-size", "12px") 
+        .attr('x', (cellwidth + 10) ) 
+        .attr('y', function(d,i) {
+            return i*cellwidth*1.2 + cellwidth/2;
+        })            
+        .attr("alignment-baseline", "middle")         
+        .text(function(d,i) { 
+            return d;
+        }); 
+
+
+        let allrate = [];
+       
+        for (age of AGEGROUPS) {
+        //    console.log(age);
+            allrate = allrate.concat(country[age].map(function(d) {return d[1]}));
+        }
+
+        let xScale = d3.scaleLinear()
+          .domain([1985,2016])
+          .range([MARGIN.left,WIDTH - MARGIN.right]);
+
+        let yScale = d3.scaleLinear()
+            .domain([
+                d3.min(allrate),
+                d3.max(allrate)
+            ])
+            .range([HEIGHT-MARGIN.bottom,MARGIN.top]);
+
+        let xAxis = d3.axisBottom(xScale)
+                      .tickFormat(d3.format("d"));
+        let yAxis = d3.axisLeft(yScale);
+
+        svg.append("g")
+            .attr("class", "axis")
+            .attr("transform", "translate("+ 0 + "," + (HEIGHT - MARGIN.bottom) + ")")
+            .call(xAxis);
+
+        svg.append("g")
+            .attr("class", "axis")
+            .attr("transform", "translate("+ MARGIN.left + "," + 0 + ")")
+            .call(yAxis);      
+        
+        
+      //  console.log(country_data);
+
+        let lineGen = d3.line()
+            .x(function(d) { 
+                return xScale(d[0]);
+            })
+            .y(function(d) {
+                return yScale(d[1]);
+            });
+
+        for (age of AGEGROUPS) {    
+            let line_data = country[age];
+            let line_color = AGECOLOURS[age];
+
+            svg.append("path")
+                .datum(line_data)
+                .attr("class", "line")
+                .attr("d", lineGen)
+                .attr("stroke",line_color);  
+        }
+    }
+
+    //5-14 years 15-24 years 25-34 years 35-54 years 55-74 years 75+ years
+    // data = {'Albany':{'5-10':[[1997,25],[1998,30]]}}
+};
+
+
+
+
+
+
+</script>
+</body>
+
+</html>  
