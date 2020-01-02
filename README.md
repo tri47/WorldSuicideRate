@@ -1,5 +1,5 @@
-A simple visualisation of Suicide rates from 1985 to 2016 for different countries, age groups, and genders.
-
+A simple interactive visualisation in of suicide rates from 1985 to 2016 by different country, age group, and gender.
+Visualised using D3.
 URL: 
 https://worldsuiciderate.herokuapp.com/
 
